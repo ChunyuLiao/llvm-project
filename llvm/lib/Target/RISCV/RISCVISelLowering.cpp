@@ -722,7 +722,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setOperationAction(IntegerVecReduceOps, VT, Custom);
 
       setOperationAction(IntegerVPOps, VT, Custom);
-
+      setOperationAction({ISD::ADD, ISD::SUB, ISD::MUL, ISD::SREM, ISD::UREM, ISD::ABS, ISD::SMIN, ISD::UMIN, ISD::SMAX, ISD::UMAX, ISD::SRL, ISD::SRA, ISD::SHL, ISD::OR, ISD::XOR, ISD::AND}, VT, Custom);
       setOperationAction({ISD::LOAD, ISD::STORE}, VT, Custom);
 
       setOperationAction({ISD::MLOAD, ISD::MSTORE, ISD::MGATHER, ISD::MSCATTER},
@@ -5252,6 +5252,10 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
 
     return lowerFixedLengthVectorSetccToRVV(Op, DAG);
   }
+  case ISD::SMIN:
+  case ISD::SMAX:
+  case ISD::UMIN:
+  case ISD::UMAX:
   case ISD::ADD:
   case ISD::SUB:
   case ISD::MUL:
@@ -5263,17 +5267,24 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   case ISD::SDIV:
   case ISD::SREM:
   case ISD::UDIV:
-  case ISD::UREM:
+  case ISD::UREM: {
+    MVT VT = Op.getSimpleValueType();
+    if (VT.isScalableVector())
+       return lowerVSDNode(Op, DAG);
     return lowerToScalableOp(Op, DAG);
+  }
   case ISD::SHL:
   case ISD::SRA:
-  case ISD::SRL:
+  case ISD::SRL: {
+    if (Op.getSimpleValueType().isScalableVector())
+      return lowerVSDNode(Op, DAG);
     if (Op.getSimpleValueType().isFixedLengthVector())
       return lowerToScalableOp(Op, DAG);
     // This can be called for an i32 shift amount that needs to be promoted.
     assert(Op.getOperand(1).getValueType() == MVT::i32 && Subtarget.is64Bit() &&
            "Unexpected custom legalisation");
     return SDValue();
+  }
   case ISD::SADDSAT:
   case ISD::UADDSAT:
   case ISD::SSUBSAT:
@@ -5286,10 +5297,6 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   case ISD::FABS:
   case ISD::FSQRT:
   case ISD::FMA:
-  case ISD::SMIN:
-  case ISD::SMAX:
-  case ISD::UMIN:
-  case ISD::UMAX:
   case ISD::FMINNUM:
   case ISD::FMAXNUM:
     return lowerToScalableOp(Op, DAG);
@@ -8523,6 +8530,29 @@ SDValue RISCVTargetLowering::lowerToScalableOp(SDValue Op,
   return convertFromScalableVector(VT, ScalableRes, DAG, Subtarget);
 }
 
+SDValue RISCVTargetLowering::lowerVSDNode(SDValue Op, SelectionDAG &DAG) const {
+  unsigned NewOpc = getRISCVVLOp(Op);
+  bool HasMergeOp = hasMergeOp(NewOpc);
+
+  SDLoc DL(Op);
+  MVT VT = Op.getSimpleValueType();
+  SmallVector<SDValue, 4> Ops;
+
+  for (const auto &OpIdx : enumerate(Op->ops())) {
+    SDValue V = OpIdx.value();
+    assert(!isa<VTSDNode>(V) && "Unexpected VTSDNode node!");
+    Ops.push_back(V);
+  }
+
+  if (HasMergeOp)
+     Ops.push_back(DAG.getUNDEF(VT));
+
+  auto [Mask, VL] = getDefaultScalableVLOps(VT, DL, DAG, Subtarget);
+  Ops.push_back(Mask);
+  Ops.push_back(VL);
+  return DAG.getNode(NewOpc, DL, VT, Ops, Op->getFlags());
+}
+
 // Lower a VP_* ISD node to the corresponding RISCVISD::*_VL node:
 // * Operands of each node are assumed to be in the same order.
 // * The EVL operand is promoted from i32 to i64 on RV64.
@@ -10732,6 +10762,8 @@ struct NodeExtensionHelper {
     switch (OrigOperand.getOpcode()) {
     case RISCVISD::VSEXT_VL:
     case RISCVISD::VZEXT_VL:
+    case ISD::SIGN_EXTEND:
+    case ISD::ZERO_EXTEND:
       return OrigOperand.getOperand(0);
     default:
       return OrigOperand;
@@ -10852,6 +10884,12 @@ struct NodeExtensionHelper {
     EnforceOneUse = true;
     CheckMask = true;
     switch (OrigOperand.getOpcode()) {
+    case ISD::SIGN_EXTEND:
+      SupportsSExt = true;
+      break;
+    case ISD::ZERO_EXTEND:
+      SupportsZExt = true;
+      break;
     case RISCVISD::VZEXT_VL:
       SupportsZExt = true;
       Mask = OrigOperand.getOperand(1);
@@ -10972,7 +11010,9 @@ struct NodeExtensionHelper {
   }
 
   /// Check if the Mask and VL of this operand are compatible with \p Root.
-  bool areVLAndMaskCompatible(const SDNode *Root) const {
+  bool areVLAndMaskCompatible(const SDNode *Root) const {    
+    if (OrigOperand.getOpcode() == ISD::SIGN_EXTEND || OrigOperand.getOpcode() == ISD::ZERO_EXTEND) 
+      return true;
     auto [Mask, VL] = getMaskAndVL(Root);
     return isMaskCompatible(Mask) && isVLCompatible(VL);
   }

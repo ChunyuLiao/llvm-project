@@ -754,14 +754,14 @@ define <vscale x 1 x i64> @ctpop_nxv1i64(<vscale x 1 x i64> %va) {
 ; RV32:       # %bb.0:
 ; RV32-NEXT:    addi sp, sp, -32
 ; RV32-NEXT:    .cfi_def_cfa_offset 32
-; RV32-NEXT:    lui a0, 349525
-; RV32-NEXT:    addi a0, a0, 1365
-; RV32-NEXT:    sw a0, 28(sp)
-; RV32-NEXT:    sw a0, 24(sp)
 ; RV32-NEXT:    lui a0, 209715
 ; RV32-NEXT:    addi a0, a0, 819
 ; RV32-NEXT:    sw a0, 20(sp)
 ; RV32-NEXT:    sw a0, 16(sp)
+; RV32-NEXT:    lui a0, 349525
+; RV32-NEXT:    addi a0, a0, 1365
+; RV32-NEXT:    sw a0, 28(sp)
+; RV32-NEXT:    sw a0, 24(sp)
 ; RV32-NEXT:    lui a0, 61681
 ; RV32-NEXT:    addi a0, a0, -241
 ; RV32-NEXT:    sw a0, 12(sp)
@@ -838,14 +838,14 @@ define <vscale x 2 x i64> @ctpop_nxv2i64(<vscale x 2 x i64> %va) {
 ; RV32:       # %bb.0:
 ; RV32-NEXT:    addi sp, sp, -32
 ; RV32-NEXT:    .cfi_def_cfa_offset 32
-; RV32-NEXT:    lui a0, 349525
-; RV32-NEXT:    addi a0, a0, 1365
-; RV32-NEXT:    sw a0, 28(sp)
-; RV32-NEXT:    sw a0, 24(sp)
 ; RV32-NEXT:    lui a0, 209715
 ; RV32-NEXT:    addi a0, a0, 819
 ; RV32-NEXT:    sw a0, 20(sp)
 ; RV32-NEXT:    sw a0, 16(sp)
+; RV32-NEXT:    lui a0, 349525
+; RV32-NEXT:    addi a0, a0, 1365
+; RV32-NEXT:    sw a0, 28(sp)
+; RV32-NEXT:    sw a0, 24(sp)
 ; RV32-NEXT:    lui a0, 61681
 ; RV32-NEXT:    addi a0, a0, -241
 ; RV32-NEXT:    sw a0, 12(sp)
@@ -922,14 +922,14 @@ define <vscale x 4 x i64> @ctpop_nxv4i64(<vscale x 4 x i64> %va) {
 ; RV32:       # %bb.0:
 ; RV32-NEXT:    addi sp, sp, -32
 ; RV32-NEXT:    .cfi_def_cfa_offset 32
-; RV32-NEXT:    lui a0, 349525
-; RV32-NEXT:    addi a0, a0, 1365
-; RV32-NEXT:    sw a0, 28(sp)
-; RV32-NEXT:    sw a0, 24(sp)
 ; RV32-NEXT:    lui a0, 209715
 ; RV32-NEXT:    addi a0, a0, 819
 ; RV32-NEXT:    sw a0, 20(sp)
 ; RV32-NEXT:    sw a0, 16(sp)
+; RV32-NEXT:    lui a0, 349525
+; RV32-NEXT:    addi a0, a0, 1365
+; RV32-NEXT:    sw a0, 28(sp)
+; RV32-NEXT:    sw a0, 24(sp)
 ; RV32-NEXT:    lui a0, 61681
 ; RV32-NEXT:    addi a0, a0, -241
 ; RV32-NEXT:    sw a0, 12(sp)
@@ -1006,14 +1006,14 @@ define <vscale x 8 x i64> @ctpop_nxv8i64(<vscale x 8 x i64> %va) {
 ; RV32:       # %bb.0:
 ; RV32-NEXT:    addi sp, sp, -32
 ; RV32-NEXT:    .cfi_def_cfa_offset 32
-; RV32-NEXT:    lui a0, 349525
-; RV32-NEXT:    addi a0, a0, 1365
-; RV32-NEXT:    sw a0, 28(sp)
-; RV32-NEXT:    sw a0, 24(sp)
 ; RV32-NEXT:    lui a0, 209715
 ; RV32-NEXT:    addi a0, a0, 819
 ; RV32-NEXT:    sw a0, 20(sp)
 ; RV32-NEXT:    sw a0, 16(sp)
+; RV32-NEXT:    lui a0, 349525
+; RV32-NEXT:    addi a0, a0, 1365
+; RV32-NEXT:    sw a0, 28(sp)
+; RV32-NEXT:    sw a0, 24(sp)
 ; RV32-NEXT:    lui a0, 61681
 ; RV32-NEXT:    addi a0, a0, -241
 ; RV32-NEXT:    sw a0, 12(sp)

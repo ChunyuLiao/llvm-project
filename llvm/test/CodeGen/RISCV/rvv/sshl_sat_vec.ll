@@ -93,18 +93,18 @@ declare <vscale x 16 x i8> @llvm.sshl.sat.nxv16i8(<vscale x 16 x i8>, <vscale x 
 define <vscale x 2 x i64> @vec_nxv2i64(<vscale x 2 x i64> %x, <vscale x 2 x i64> %y) nounwind {
 ; CHECK-LABEL: vec_nxv2i64:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli a0, zero, e64, m2, ta, ma
-; CHECK-NEXT:    vsll.vv v12, v8, v10
-; CHECK-NEXT:    vsra.vv v14, v12, v10
-; CHECK-NEXT:    vmsne.vv v10, v8, v14
 ; CHECK-NEXT:    li a0, -1
 ; CHECK-NEXT:    srli a1, a0, 1
-; CHECK-NEXT:    vmv.v.x v14, a1
+; CHECK-NEXT:    vsetvli a2, zero, e64, m2, ta, ma
+; CHECK-NEXT:    vmv.v.x v12, a1
+; CHECK-NEXT:    vsll.vv v14, v8, v10
+; CHECK-NEXT:    vsra.vv v16, v14, v10
+; CHECK-NEXT:    vmsne.vv v10, v8, v16
 ; CHECK-NEXT:    vmsle.vi v0, v8, -1
 ; CHECK-NEXT:    slli a0, a0, 63
-; CHECK-NEXT:    vmerge.vxm v8, v14, a0, v0
+; CHECK-NEXT:    vmerge.vxm v8, v12, a0, v0
 ; CHECK-NEXT:    vmv1r.v v0, v10
-; CHECK-NEXT:    vmerge.vvm v8, v12, v8, v0
+; CHECK-NEXT:    vmerge.vvm v8, v14, v8, v0
 ; CHECK-NEXT:    ret
   %tmp = call <vscale x 2 x i64> @llvm.sshl.sat.nxv2i64(<vscale x 2 x i64> %x, <vscale x 2 x i64> %y)
   ret <vscale x 2 x i64> %tmp
@@ -113,19 +113,19 @@ define <vscale x 2 x i64> @vec_nxv2i64(<vscale x 2 x i64> %x, <vscale x 2 x i64>
 define <vscale x 4 x i32> @vec_nxv4i32(<vscale x 4 x i32> %x, <vscale x 4 x i32> %y) nounwind {
 ; CHECK-LABEL: vec_nxv4i32:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli a0, zero, e32, m2, ta, ma
-; CHECK-NEXT:    vsll.vv v12, v8, v10
-; CHECK-NEXT:    vsra.vv v14, v12, v10
-; CHECK-NEXT:    vmsne.vv v10, v8, v14
 ; CHECK-NEXT:    lui a0, 524288
 ; CHECK-NEXT:    addiw a0, a0, -1
-; CHECK-NEXT:    vmv.v.x v14, a0
+; CHECK-NEXT:    vsetvli a1, zero, e32, m2, ta, ma
+; CHECK-NEXT:    vmv.v.x v12, a0
+; CHECK-NEXT:    vsll.vv v14, v8, v10
+; CHECK-NEXT:    vsra.vv v16, v14, v10
+; CHECK-NEXT:    vmsne.vv v10, v8, v16
 ; CHECK-NEXT:    vmsle.vi v0, v8, -1
 ; CHECK-NEXT:    li a0, 1
 ; CHECK-NEXT:    slli a0, a0, 31
-; CHECK-NEXT:    vmerge.vxm v8, v14, a0, v0
+; CHECK-NEXT:    vmerge.vxm v8, v12, a0, v0
 ; CHECK-NEXT:    vmv1r.v v0, v10
-; CHECK-NEXT:    vmerge.vvm v8, v12, v8, v0
+; CHECK-NEXT:    vmerge.vvm v8, v14, v8, v0
 ; CHECK-NEXT:    ret
   %tmp = call <vscale x 4 x i32> @llvm.sshl.sat.nxv4i32(<vscale x 4 x i32> %x, <vscale x 4 x i32> %y)
   ret <vscale x 4 x i32> %tmp
@@ -134,13 +134,13 @@ define <vscale x 4 x i32> @vec_nxv4i32(<vscale x 4 x i32> %x, <vscale x 4 x i32>
 define <vscale x 8 x i16> @vec_nxv8i16(<vscale x 8 x i16> %x, <vscale x 8 x i16> %y) nounwind {
 ; CHECK-LABEL: vec_nxv8i16:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli a0, zero, e16, m2, ta, ma
+; CHECK-NEXT:    lui a0, 8
+; CHECK-NEXT:    addiw a1, a0, -1
+; CHECK-NEXT:    vsetvli a2, zero, e16, m2, ta, ma
+; CHECK-NEXT:    vmsle.vi v0, v8, -1
 ; CHECK-NEXT:    vsll.vv v12, v8, v10
 ; CHECK-NEXT:    vsra.vv v14, v12, v10
 ; CHECK-NEXT:    vmsne.vv v10, v8, v14
-; CHECK-NEXT:    lui a0, 8
-; CHECK-NEXT:    addiw a1, a0, -1
-; CHECK-NEXT:    vmsle.vi v0, v8, -1
 ; CHECK-NEXT:    vmv.v.x v8, a1
 ; CHECK-NEXT:    vmerge.vxm v8, v8, a0, v0
 ; CHECK-NEXT:    vmv1r.v v0, v10
@@ -153,17 +153,17 @@ define <vscale x 8 x i16> @vec_nxv8i16(<vscale x 8 x i16> %x, <vscale x 8 x i16>
 define <vscale x 16 x i8> @vec_nxv16i8(<vscale x 16 x i8> %x, <vscale x 16 x i8> %y) nounwind {
 ; CHECK-LABEL: vec_nxv16i8:
 ; CHECK:       # %bb.0:
-; CHECK-NEXT:    vsetvli a0, zero, e8, m2, ta, ma
-; CHECK-NEXT:    vsll.vv v12, v8, v10
-; CHECK-NEXT:    vsra.vv v14, v12, v10
-; CHECK-NEXT:    vmsne.vv v10, v8, v14
 ; CHECK-NEXT:    li a0, 127
-; CHECK-NEXT:    vmv.v.x v14, a0
+; CHECK-NEXT:    vsetvli a1, zero, e8, m2, ta, ma
+; CHECK-NEXT:    vmv.v.x v12, a0
+; CHECK-NEXT:    vsll.vv v14, v8, v10
+; CHECK-NEXT:    vsra.vv v16, v14, v10
+; CHECK-NEXT:    vmsne.vv v10, v8, v16
 ; CHECK-NEXT:    vmsle.vi v0, v8, -1
 ; CHECK-NEXT:    li a0, 128
-; CHECK-NEXT:    vmerge.vxm v8, v14, a0, v0
+; CHECK-NEXT:    vmerge.vxm v8, v12, a0, v0
 ; CHECK-NEXT:    vmv1r.v v0, v10
-; CHECK-NEXT:    vmerge.vvm v8, v12, v8, v0
+; CHECK-NEXT:    vmerge.vvm v8, v14, v8, v0
 ; CHECK-NEXT:    ret
   %tmp = call <vscale x 16 x i8> @llvm.sshl.sat.nxv16i8(<vscale x 16 x i8> %x, <vscale x 16 x i8> %y)
   ret <vscale x 16 x i8> %tmp
