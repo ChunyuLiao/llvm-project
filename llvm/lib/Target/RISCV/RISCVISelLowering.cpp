@@ -4800,16 +4800,44 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
       return Op;
     return lowerVectorTruncLike(Op, DAG);
   case ISD::ANY_EXTEND:
-  case ISD::ZERO_EXTEND:
-    if (Op.getOperand(0).getValueType().isVector() &&
-        Op.getOperand(0).getValueType().getVectorElementType() == MVT::i1)
-      return lowerVectorMaskExt(Op, DAG, /*ExtVal*/ 1);
-    return lowerFixedLengthVectorExtendToRVV(Op, DAG, RISCVISD::VZEXT_VL);
-  case ISD::SIGN_EXTEND:
+  case ISD::ZERO_EXTEND: {
+    MVT VT = Op.getSimpleValueType();
+    if (VT.isScalableVector()) {
+      if (Op.getOperand(0).getSimpleValueType().getVectorElementType() == MVT::i1)
+        return lowerVectorMaskExt(Op, DAG, /*ExtVal*/ -1);
+      SDLoc DL(Op);
+      SmallVector<SDValue, 4> Ops;
+      Ops.push_back(Op.getOperand(0));
+      //if (*ISD::getVPMaskIdx(Op.getOpcode()) == OpIdx.index())
+      auto [Mask, VL] = getDefaultScalableVLOps(VT, DL, DAG, Subtarget);
+      Ops.push_back(Mask);
+      Ops.push_back(VL);
+      return DAG.getNode(RISCVISD::VZEXT_VL, DL, VT, Ops, Op->getFlags());
+    }
     if (Op.getOperand(0).getValueType().isVector() &&
         Op.getOperand(0).getValueType().getVectorElementType() == MVT::i1)
       return lowerVectorMaskExt(Op, DAG, /*ExtVal*/ -1);
     return lowerFixedLengthVectorExtendToRVV(Op, DAG, RISCVISD::VSEXT_VL);
+  }
+  case ISD::SIGN_EXTEND: {
+    MVT VT = Op.getSimpleValueType();
+    if (VT.isScalableVector()) {
+      if (Op.getOperand(0).getSimpleValueType().getVectorElementType() == MVT::i1)
+        return lowerVectorMaskExt(Op, DAG, /*ExtVal*/ -1);
+      SDLoc DL(Op);
+      SmallVector<SDValue, 4> Ops;
+      Ops.push_back(Op.getOperand(0));
+      //if (*ISD::getVPMaskIdx(Op.getOpcode()) == OpIdx.index())
+      auto [Mask, VL] = getDefaultScalableVLOps(VT, DL, DAG, Subtarget);
+      Ops.push_back(Mask);
+      Ops.push_back(VL);
+      return DAG.getNode(RISCVISD::VSEXT_VL, DL, VT, Ops, Op->getFlags());
+    }
+     if (Op.getOperand(0).getValueType().isVector() &&
+         Op.getOperand(0).getValueType().getVectorElementType() == MVT::i1)
+       return lowerVectorMaskExt(Op, DAG, /*ExtVal*/ -1);
+     return lowerFixedLengthVectorExtendToRVV(Op, DAG, RISCVISD::VSEXT_VL);
+  }
   case ISD::SPLAT_VECTOR_PARTS:
     return lowerSPLAT_VECTOR_PARTS(Op, DAG);
   case ISD::INSERT_VECTOR_ELT:
