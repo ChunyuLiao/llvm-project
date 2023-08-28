@@ -254,6 +254,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
 
     setOperationAction({ISD::UADDO, ISD::USUBO, ISD::UADDSAT, ISD::USUBSAT},
                        MVT::i32, Custom);
+    setOperationAction(ISD::READ_REGISTER, MVT::i32, Custom);
   } else {
     setLibcallName(
         {RTLIB::SHL_I128, RTLIB::SRL_I128, RTLIB::SRA_I128, RTLIB::MUL_I128},
@@ -1174,6 +1175,21 @@ EVT RISCVTargetLowering::getSetCCResultType(const DataLayout &DL,
 
 MVT RISCVTargetLowering::getVPExplicitVectorLengthTy() const {
   return Subtarget.getXLenVT();
+}
+
+MVT RISCVTargetLowering::getPointerTy(const DataLayout &DL, uint32_t AS) const {
+  // Return i64 for ILP32. It will be truncated and extended when transferred to
+  // memory, but the 64-bit DAG allow us to use RISCV64's address modes much
+  // more easily.
+  if (Subtarget.is64Bit() && Subtarget.getTargetABI() == RISCVABI::ABI_ILP32)
+    return MVT::getIntegerVT(64);
+  return TargetLowering::getPointerTy(DL, AS);
+}
+
+MVT RISCVTargetLowering::getScalarShiftAmountTy(const DataLayout &DL, EVT VT) const {
+  if (Subtarget.is64Bit() && Subtarget.getTargetABI() == RISCVABI::ABI_ILP32)
+    return MVT::getIntegerVT(64);
+  return TargetLowering::getScalarShiftAmountTy(DL, VT);
 }
 
 bool RISCVTargetLowering::getTgtMemIntrinsic(IntrinsicInfo &Info,
@@ -9226,6 +9242,14 @@ void RISCVTargetLowering::ReplaceNodeResults(SDNode *N,
     Results.push_back(DAG.getNode(ISD::BUILD_PAIR, DL, MVT::i64, EltLo, EltHi));
     break;
   }
+  case ISD::READ_REGISTER: {
+    SDValue Chain = N->getOperand(0);
+    SDValue SysRegName = N->getOperand(1);
+    SDValue Result = DAG.getNode(N->getOpcode(), DL, DAG.getVTList({MVT::i64, MVT::Other}), Chain, SysRegName);
+    Results.push_back(DAG.getNode(ISD::TRUNCATE, DL, MVT::i32, Result));
+    Results.push_back(Result.getValue(1));
+    break;
+  }
   case ISD::INTRINSIC_WO_CHAIN: {
     unsigned IntNo = cast<ConstantSDNode>(N->getOperand(0))->getZExtValue();
     switch (IntNo) {
@@ -13904,7 +13928,7 @@ static SDValue unpackFromMemLoc(SelectionDAG &DAG, SDValue Chain,
   MachineFrameInfo &MFI = MF.getFrameInfo();
   EVT LocVT = VA.getLocVT();
   EVT ValVT = VA.getValVT();
-  EVT PtrVT = MVT::getIntegerVT(DAG.getDataLayout().getPointerSizeInBits(0));
+  EVT PtrVT = DAG.getTargetLoweringInfo().getFrameIndexTy(DAG.getDataLayout());
   if (ValVT.isScalableVector()) {
     // When the value is a scalable vector, we save the pointer which points to
     // the scalable vector value in the stack. The ValVT will be the pointer
