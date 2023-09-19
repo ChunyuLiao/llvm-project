@@ -750,6 +750,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
 
       setOperationAction(IntegerVPOps, VT, Custom);
 
+      setOperationAction({ISD::STRICT_FADD, ISD::STRICT_FSUB, ISD::STRICT_FMUL, ISD::STRICT_FDIV, ISD::STRICT_FSQRT, ISD::STRICT_FMA, ISD::CTPOP,ISD::BSWAP, ISD::UDIV, ISD::SDIV, ISD::MULHS, ISD::MULHU, ISD::ADD, ISD::SUB, ISD::MUL, ISD::SREM, ISD::UREM, ISD::ABS, ISD::SMIN, ISD::UMIN, ISD::SMAX, ISD::UMAX, ISD::SRL, ISD::SRA, ISD::SHL, ISD::OR, ISD::XOR, ISD::AND}, VT, Custom);
       setOperationAction({ISD::LOAD, ISD::STORE}, VT, Custom);
 
       setOperationAction({ISD::MLOAD, ISD::MSTORE, ISD::MGATHER, ISD::MSCATTER},
@@ -5423,6 +5424,29 @@ static SDValue SplitVectorReductionOp(SDValue Op, SelectionDAG &DAG) {
                      {ResLo, Hi, MaskHi, EVLHi}, Op->getFlags());
 }
 
+SDValue RISCVTargetLowering::lowerVSDNode(SDValue Op, SelectionDAG &DAG) const {
+   unsigned NewOpc = getRISCVVLOp(Op);
+   bool HasMergeOp = hasMergeOp(NewOpc);
+
+   SDLoc DL(Op);
+   MVT VT = Op.getSimpleValueType();
+   SmallVector<SDValue, 4> Ops;
+
+   for (const auto &OpIdx : enumerate(Op->ops())) {
+     SDValue V = OpIdx.value();
+     assert(!isa<VTSDNode>(V) && "Unexpected VTSDNode node!");
+     Ops.push_back(V);
+   }
+
+   if (HasMergeOp)
+      Ops.push_back(DAG.getUNDEF(VT));
+
+   auto [Mask, VL] = getDefaultScalableVLOps(VT, DL, DAG, Subtarget);
+   Ops.push_back(Mask);
+   Ops.push_back(VL);
+   return DAG.getNode(NewOpc, DL, VT, Ops, Op->getFlags());
+}
+
 SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
                                             SelectionDAG &DAG) const {
   switch (Op.getOpcode()) {
@@ -5470,6 +5494,8 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
     // XTHeadBb only supports rotate by constant.
     if (!isa<ConstantSDNode>(Op.getOperand(1)))
       return SDValue();
+    if (Op.getValueType().isScalableVector()) 
+      return lowerVSDNode(Op, DAG);
     return Op;
   case ISD::BITCAST: {
     SDLoc DL(Op);
@@ -6098,17 +6124,25 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   case ISD::UDIV:
   case ISD::UREM:
   case ISD::BSWAP:
-  case ISD::CTPOP:
+  case ISD::CTPOP: {
+     MVT VT = Op.getSimpleValueType();
+     if (VT.isScalableVector())
+        return lowerVSDNode(Op, DAG);
     return lowerToScalableOp(Op, DAG);
+  }
   case ISD::SHL:
   case ISD::SRA:
-  case ISD::SRL:
+  case ISD::SRL: {
+        MVT VT = Op.getSimpleValueType();
+     if (VT.isScalableVector())
+        return lowerVSDNode(Op, DAG);
     if (Op.getSimpleValueType().isFixedLengthVector())
       return lowerToScalableOp(Op, DAG);
     // This can be called for an i32 shift amount that needs to be promoted.
     assert(Op.getOperand(1).getValueType() == MVT::i32 && Subtarget.is64Bit() &&
            "Unexpected custom legalisation");
     return SDValue();
+  }
   case ISD::FADD:
   case ISD::FSUB:
   case ISD::FMUL:
@@ -6131,8 +6165,12 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   case ISD::SMIN:
   case ISD::SMAX:
   case ISD::UMIN:
-  case ISD::UMAX:
+  case ISD::UMAX: {
+     MVT VT = Op.getSimpleValueType();
+     if (VT.isScalableVector())
+        return lowerVSDNode(Op, DAG);
     return lowerToScalableOp(Op, DAG);
+  }
   case ISD::ABS:
   case ISD::VP_ABS:
     return lowerABS(Op, DAG);
@@ -6157,8 +6195,12 @@ SDValue RISCVTargetLowering::LowerOperation(SDValue Op,
   case ISD::STRICT_FMUL:
   case ISD::STRICT_FDIV:
   case ISD::STRICT_FSQRT:
-  case ISD::STRICT_FMA:
+  case ISD::STRICT_FMA: {
+       MVT VT = Op.getSimpleValueType();
+     if (VT.isScalableVector())
+        return lowerVSDNode(Op, DAG);
     return lowerToScalableOp(Op, DAG);
+  }
   case ISD::STRICT_FSETCC:
   case ISD::STRICT_FSETCCS:
     return lowerVectorStrictFSetcc(Op, DAG);
@@ -11804,6 +11846,8 @@ struct NodeExtensionHelper {
     switch (OrigOperand.getOpcode()) {
     case RISCVISD::VSEXT_VL:
     case RISCVISD::VZEXT_VL:
+    case ISD::SIGN_EXTEND:
+    case ISD::ZERO_EXTEND:
       return OrigOperand.getOperand(0);
     default:
       return OrigOperand;
@@ -11924,6 +11968,12 @@ struct NodeExtensionHelper {
     EnforceOneUse = true;
     CheckMask = true;
     switch (OrigOperand.getOpcode()) {
+    case ISD::SIGN_EXTEND:
+       SupportsSExt = true;
+       break;
+    case ISD::ZERO_EXTEND:
+       SupportsZExt = true;
+       break;
     case RISCVISD::VZEXT_VL:
       SupportsZExt = true;
       Mask = OrigOperand.getOperand(1);
@@ -12045,6 +12095,8 @@ struct NodeExtensionHelper {
 
   /// Check if the Mask and VL of this operand are compatible with \p Root.
   bool areVLAndMaskCompatible(const SDNode *Root) const {
+    if (OrigOperand.getOpcode() == ISD::SIGN_EXTEND || OrigOperand.getOpcode() == ISD::ZERO_EXTEND) 
+       return true;
     auto [Mask, VL] = getMaskAndVL(Root);
     return isMaskCompatible(Mask) && isVLCompatible(VL);
   }
