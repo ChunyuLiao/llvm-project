@@ -23999,6 +23999,14 @@ SDValue DAGCombiner::visitINSERT_VECTOR_ELT(SDNode *N) {
     return DAG.getFreeze(InVec);
   }
 
+  unsigned Opcode = InVec.getOpcode();
+  if ((Opcode == ISD::SIGN_EXTEND || Opcode == ISD::ZERO_EXTEND) && Opcode == InVal.getOpcode() &&
+           VT.getScalarType() == InVal.getValueType())  {
+    SDValue NewOp = DAG.getNode(ISD::INSERT_VECTOR_ELT, DL, InVec.getOperand(0).getValueType(),
+                                  InVec.getOperand(0), InVal.getOperand(0), EltNo);
+    return DAG.getNode(Opcode, DL, VT, NewOp);
+  }
+
   if (!IndexC) {
     // If this is variable insert to undef vector, it might be better to splat:
     // inselt undef, InVal, EltNo --> build_vector < InVal, InVal, ... >
