@@ -18,6 +18,7 @@
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Analysis/ValueTracking.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/InstVisitor.h"
@@ -268,6 +269,58 @@ bool RISCVCodeGenPrepare::visitIntrinsicInst(IntrinsicInst &I) {
 // number of vsetvlis required when VLEN is exactly known, and
 // reducing register pressure in all cases.
 bool RISCVCodeGenPrepare::expandMulReduction(IntrinsicInst &II) {
+  IRBuilder<> Builder(&II);
+  if (II.getIntrinsicID() == Intrinsic::vector_reduce_xor) {
+     Value *V, *C, *C0;
+     using namespace PatternMatch;
+     if (match(&II, m_Intrinsic<Intrinsic::vector_reduce_xor>(
+                       m_Intrinsic<Intrinsic::vp_merge>(m_Value(), m_Xor(m_Value(), m_Value(C)), m_Value(C))))) {
+    // II.dump();
+    // C->dump();
+     //auto *A;  
+    // IRBuilder<> Builder(A);
+     auto *PHI = dyn_cast<PHINode>(C);
+     if (!PHI || !PHI->hasNUses(2) || PHI->getNumIncomingValues() != 2) //||
+       return false;
+	     ///!llvm::is_contained(PHI->incoming_values(), &II))
+     // return false;
+     
+     II.dump();
+     //C->setOperand(0, V)
+     auto *PHI0 = dyn_cast<ConstantExpr>(PHI->getIncomingValue(0));
+     //if (match(PHI->getIncomingValue(0), m_ImmConstant(C0))) {
+     //  PHI0->getOperand(0)->dump();
+     //  C0->dump();
+    // }
+      if (!PHI0)
+        return false;
+     //PHI0->getOperand(0)->dump();
+     if (PHI0->getOpcode() != Instruction::InsertElement)
+       return false;	     
+       PHI0->getOperand(0)->dump();
+     //auto *Constant1 = dyn_cast<InsertElementConstantExpr>(*PHI0);
+     if (!match(PHI0->getOperand(0), m_Zero()))
+	 return false;
+     PHI->setIncomingValue(0, ConstantInt::get(PHI0->getType(), 0));
+	  PHI0->getOperand(0)->dump();
+     PHI->dump();
+     Value *Op0 = II.getArgOperand(0);
+     Value *New = Builder.CreateIntrinsic(Intrinsic::vector_reduce_xor, Op0->getType(), Op0);
+     Value *Xor = Builder.CreateXor(New, ConstantInt::get(Op0->getType()->getScalarType(), 13));
+     II.replaceAllUsesWith(Xor);
+     II.eraseFromParent();
+	  // II.dump();
+  //   Xor->dump();
+    // Builder.SetInsertPoint(&II);
+   //  II.replaceAllUsesWith(Xor);
+   //  II.dump();
+   //  II.setOperand(0, V);
+   //  II.dump();
+    return true;
+    }
+    
+  }
+
   if (II.getIntrinsicID() != Intrinsic::vector_reduce_mul)
     return false;
 
@@ -287,7 +340,7 @@ bool RISCVCodeGenPrepare::expandMulReduction(IntrinsicInst &II) {
   if (!isPowerOf2_32(VF) || VF <= M1VF)
     return false;
 
-  IRBuilder<> Builder(&II);
+  //IRBuilder<> Builder(&II);
 
   // Shuffle-reduce at the original vector width.  This just duplicates the
   // default lowering down to m1.
