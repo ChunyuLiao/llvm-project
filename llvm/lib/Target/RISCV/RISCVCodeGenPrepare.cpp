@@ -51,6 +51,7 @@ public:
   bool visitIntrinsicInst(IntrinsicInst &I);
   bool expandVPStrideLoad(IntrinsicInst &I);
   bool expandMulReduction(IntrinsicInst &I);
+  bool simplyInsertElementForReduction(IntrinsicInst &I);
   bool widenVPMerge(Instruction *I);
   bool visitFreezeInst(FreezeInst &BO);
 };
@@ -234,6 +235,9 @@ bool RISCVCodeGenPrepare::visitIntrinsicInst(IntrinsicInst &I) {
   if (expandMulReduction(I))
     return true;
 
+  if (simplyInsertElementForReduction(I))
+    return true;
+  
   if (widenVPMerge(&I))
     return true;
 
@@ -268,59 +272,77 @@ bool RISCVCodeGenPrepare::visitIntrinsicInst(IntrinsicInst &I) {
 // Partially expand a vector_reduce_mul wider than M1 to reduce the
 // number of vsetvlis required when VLEN is exactly known, and
 // reducing register pressure in all cases.
-bool RISCVCodeGenPrepare::expandMulReduction(IntrinsicInst &II) {
-  IRBuilder<> Builder(&II);
-  if (II.getIntrinsicID() == Intrinsic::vector_reduce_xor) {
-     Value *V, *C, *C0;
-     using namespace PatternMatch;
-     if (match(&II, m_Intrinsic<Intrinsic::vector_reduce_xor>(
-                       m_Intrinsic<Intrinsic::vp_merge>(m_Value(), m_Xor(m_Value(), m_Value(C)), m_Value(C))))) {
-    // II.dump();
-    // C->dump();
-     //auto *A;  
-    // IRBuilder<> Builder(A);
-     auto *PHI = dyn_cast<PHINode>(C);
+bool RISCVCodeGenPrepare::simplyInsertElementForReduction(IntrinsicInst &II) {
+  auto Opcode = II.getIntrinsicID(); 	
+  Value *V, *C, *C0;
+  using namespace PatternMatch;
+  switch (Opcode) {
+  case Intrinsic::vector_reduce_xor:
+   if (!match(II.getArgOperand(0),
+                      m_Intrinsic<Intrinsic::vp_merge>(m_One(), m_Xor(m_Value(), m_Value(C)), m_Value(C))))
+	   return false;
+   break;
+  case Intrinsic::vector_reduce_add:
+    if (!match(II.getArgOperand(0),
+                      m_Intrinsic<Intrinsic::vp_merge>(m_One(), m_Add(m_Value(), m_Value(C)), m_Value(C))))
+	     return false;
+   break;
+  case Intrinsic::vector_reduce_or:
+     if (!match(II.getArgOperand(0),
+                      m_Intrinsic<Intrinsic::vp_merge>(m_One(), m_Or(m_Value(), m_Value(C)), m_Value(C))))
+             return false;
+     break;
+  case Intrinsic::vector_reduce_and:
+     if (!match(II.getArgOperand(0),
+                      m_Intrinsic<Intrinsic::vp_merge>(m_One(), m_And(m_Value(), m_Value(C)), m_Value(C))))
+             return false;
+   break;
+  default:
+    return false;
+  };
+       auto *PHI = dyn_cast<PHINode>(C);
      if (!PHI || !PHI->hasNUses(2) || PHI->getNumIncomingValues() != 2) //||
        return false;
-	     ///!llvm::is_contained(PHI->incoming_values(), &II))
-     // return false;
-     
-     II.dump();
-     //C->setOperand(0, V)
      auto *PHI0 = dyn_cast<ConstantExpr>(PHI->getIncomingValue(0));
-     //if (match(PHI->getIncomingValue(0), m_ImmConstant(C0))) {
-     //  PHI0->getOperand(0)->dump();
-     //  C0->dump();
-    // }
-      if (!PHI0)
+       
+     if (!PHI0)
         return false;
-     //PHI0->getOperand(0)->dump();
+     
      if (PHI0->getOpcode() != Instruction::InsertElement)
-       return false;	     
+       return false;
        PHI0->getOperand(0)->dump();
-     //auto *Constant1 = dyn_cast<InsertElementConstantExpr>(*PHI0);
-     if (!match(PHI0->getOperand(0), m_Zero()))
-	 return false;
+     
+       if (!match(PHI0->getOperand(0), m_Zero()))
+         return false;
      PHI->setIncomingValue(0, ConstantInt::get(PHI0->getType(), 0));
-	  PHI0->getOperand(0)->dump();
+          PHI0->getOperand(0)->dump();
      PHI->dump();
      Value *Op0 = II.getArgOperand(0);
-     Value *New = Builder.CreateIntrinsic(Intrinsic::vector_reduce_xor, Op0->getType(), Op0);
-     Value *Xor = Builder.CreateXor(New, ConstantInt::get(Op0->getType()->getScalarType(), 13));
+    IRBuilder<> Builder(&II);
+     Value *New = Builder.CreateIntrinsic(Opcode, Op0->getType(), Op0);
+     Value *Xor;
+     switch (Opcode) {
+      case Intrinsic::vector_reduce_xor:
+	      Xor = Builder.CreateXor(New, ConstantInt::get(Op0->getType()->getScalarType(), 13));
+         break;
+      case Intrinsic::vector_reduce_add:
+              Xor = Builder.CreateAdd(New, ConstantInt::get(Op0->getType()->getScalarType(), 13));
+     break;
+      case Intrinsic::vector_reduce_or:
+              Xor = Builder.CreateOr(New, ConstantInt::get(Op0->getType()->getScalarType(), 13));
+     break;
+      case Intrinsic::vector_reduce_and:
+              Xor = Builder.CreateAnd(New, ConstantInt::get(Op0->getType()->getScalarType(), 13));
+      break;
+      default:
+        break;
+     };
      II.replaceAllUsesWith(Xor);
      II.eraseFromParent();
-	  // II.dump();
-  //   Xor->dump();
-    // Builder.SetInsertPoint(&II);
-   //  II.replaceAllUsesWith(Xor);
-   //  II.dump();
-   //  II.setOperand(0, V);
-   //  II.dump();
     return true;
-    }
-    
-  }
+}
 
+bool RISCVCodeGenPrepare::expandMulReduction(IntrinsicInst &II) {
   if (II.getIntrinsicID() != Intrinsic::vector_reduce_mul)
     return false;
 
@@ -340,7 +362,7 @@ bool RISCVCodeGenPrepare::expandMulReduction(IntrinsicInst &II) {
   if (!isPowerOf2_32(VF) || VF <= M1VF)
     return false;
 
-  //IRBuilder<> Builder(&II);
+  IRBuilder<> Builder(&II);
 
   // Shuffle-reduce at the original vector width.  This just duplicates the
   // default lowering down to m1.
