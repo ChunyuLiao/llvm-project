@@ -274,29 +274,24 @@ bool RISCVCodeGenPrepare::visitIntrinsicInst(IntrinsicInst &I) {
 // reducing register pressure in all cases.
 bool RISCVCodeGenPrepare::simplyInsertElementForReduction(IntrinsicInst &II) {
   auto Opcode = II.getIntrinsicID(); 	
-  Value *V, *C, *C0;
+  Value *V, *C, *C0, *X, *Y;
   using namespace PatternMatch;
   switch (Opcode) {
   case Intrinsic::vector_reduce_xor:
    if (!match(II.getArgOperand(0),
-                      m_Intrinsic<Intrinsic::vp_merge>(m_One(), m_Xor(m_Value(), m_Value(C)), m_Value(C))))
+                      m_Intrinsic<Intrinsic::vp_merge>(m_One(), m_OneUse(m_Xor(m_Value(X), m_Value(Y))), m_Value(C))) || (X != C && Y != C))
 	   return false;
    break;
   case Intrinsic::vector_reduce_add:
     if (!match(II.getArgOperand(0),
-                      m_Intrinsic<Intrinsic::vp_merge>(m_One(), m_Add(m_Value(), m_Value(C)), m_Value(C))))
+                      m_Intrinsic<Intrinsic::vp_merge>(m_One(), m_OneUse(m_Add(m_Value(X), m_Value(Y))), m_Value(C))) || (X != C && Y != C))
 	     return false;
    break;
   case Intrinsic::vector_reduce_or:
      if (!match(II.getArgOperand(0),
-                      m_Intrinsic<Intrinsic::vp_merge>(m_One(), m_Or(m_Value(), m_Value(C)), m_Value(C))))
+                      m_Intrinsic<Intrinsic::vp_merge>(m_One(), m_OneUse(m_Or(m_Value(X), m_Value(Y))), m_Value(C))) || (X != C && Y != C))
              return false;
      break;
-  case Intrinsic::vector_reduce_and:
-     if (!match(II.getArgOperand(0),
-                      m_Intrinsic<Intrinsic::vp_merge>(m_One(), m_And(m_Value(), m_Value(C)), m_Value(C))))
-             return false;
-   break;
   default:
     return false;
   };
@@ -304,40 +299,42 @@ bool RISCVCodeGenPrepare::simplyInsertElementForReduction(IntrinsicInst &II) {
      if (!PHI || !PHI->hasNUses(2) || PHI->getNumIncomingValues() != 2) //||
        return false;
      auto *PHI0 = dyn_cast<ConstantExpr>(PHI->getIncomingValue(0));
-       
-     if (!PHI0)
+     auto *PHI0I = dyn_cast<Instruction>(PHI->getIncomingValue(0));  
+     if (!PHI0 && !PHI0I)
         return false;
-     
-     if (PHI0->getOpcode() != Instruction::InsertElement)
-       return false;
-       PHI0->getOperand(0)->dump();
-     
-       if (!match(PHI0->getOperand(0), m_Zero()))
+
+     Value *Scalar; 
+     if (PHI0) {
+	if(((PHI0->getOpcode() != Instruction::InsertElement) || (!match(PHI0->getOperand(0), m_Zero()))))
+          return false;
+	 Scalar = PHI0->getOperand(1);
+     }	     
+      
+     if (PHI0I) {
+       if(((PHI0I->getOpcode() != Instruction::InsertElement) || (!match(PHI0I->getOperand(0), m_Zero()))))
          return false;
-     PHI->setIncomingValue(0, ConstantInt::get(PHI0->getType(), 0));
-          PHI0->getOperand(0)->dump();
-     PHI->dump();
+       Scalar = PHI0I->getOperand(1);
+     }		   
+
+     PHI->setIncomingValue(0, ConstantInt::get(PHI->getType(), 0));
      Value *Op0 = II.getArgOperand(0);
-    IRBuilder<> Builder(&II);
+     IRBuilder<> Builder(&II);
      Value *New = Builder.CreateIntrinsic(Opcode, Op0->getType(), Op0);
-     Value *Xor;
+     Value *InitScalar;
      switch (Opcode) {
       case Intrinsic::vector_reduce_xor:
-	      Xor = Builder.CreateXor(New, ConstantInt::get(Op0->getType()->getScalarType(), 13));
+	      InitScalar = Builder.CreateXor(New, Scalar);
          break;
       case Intrinsic::vector_reduce_add:
-              Xor = Builder.CreateAdd(New, ConstantInt::get(Op0->getType()->getScalarType(), 13));
+              InitScalar = Builder.CreateAdd(New, Scalar);
      break;
       case Intrinsic::vector_reduce_or:
-              Xor = Builder.CreateOr(New, ConstantInt::get(Op0->getType()->getScalarType(), 13));
+              InitScalar = Builder.CreateOr(New, Scalar);
      break;
-      case Intrinsic::vector_reduce_and:
-              Xor = Builder.CreateAnd(New, ConstantInt::get(Op0->getType()->getScalarType(), 13));
-      break;
       default:
         break;
      };
-     II.replaceAllUsesWith(Xor);
+     II.replaceAllUsesWith(InitScalar);
      II.eraseFromParent();
     return true;
 }
