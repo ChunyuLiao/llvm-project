@@ -5570,6 +5570,74 @@ static SDValue lowerVECTOR_SHUFFLEAsVSlidedown(const SDLoc &DL, MVT VT,
       DL, VT, convertFromScalableVector(SrcVT, Slidedown, DAG, Subtarget), 0);
 }
 
+// Lower a shuffle which overwrites a contiguous prefix of one input with a
+// slidedown from the other input. For example:
+//   shuffle v1, v2, <20, 21, 22, 131, 132, ..., 255>
+// can be lowered as:
+//   vslidedown.vi v2, v1, 20 with VL=3 and tail-undisturbed policy.
+static SDValue lowerVECTOR_SHUFFLEAsPrefixVSlidedown(
+    const SDLoc &DL, MVT VT, SDValue V1, SDValue V2, ArrayRef<int> Mask,
+    const RISCVSubtarget &Subtarget, SelectionDAG &DAG) {
+  if (V1.isUndef() || V2.isUndef() || Mask.empty() || Mask[0] < 0)
+    return SDValue();
+
+  const unsigned NumElts = VT.getVectorNumElements();
+  MVT XLenVT = Subtarget.getXLenVT();
+
+  auto TryMatch = [&](unsigned SlideSrc, unsigned PassthruSrc) -> SDValue {
+    int First = Mask[0];
+    if ((unsigned)(First / NumElts) != SlideSrc)
+      return SDValue();
+
+    unsigned Offset = First % NumElts;
+    if (Offset == 0)
+      return SDValue();
+
+    unsigned PrefixLen = 1;
+    while (PrefixLen != NumElts && Offset + PrefixLen < NumElts) {
+      int Expected = SlideSrc * NumElts + Offset + PrefixLen;
+      if (Mask[PrefixLen] != Expected)
+        break;
+      ++PrefixLen;
+    }
+
+    if (PrefixLen == NumElts)
+      return SDValue();
+
+    for (unsigned I = PrefixLen; I != NumElts; ++I) {
+      int Expected = PassthruSrc * NumElts + I;
+      if (Mask[I] != Expected && Mask[I] >= 0)
+        return SDValue();
+    }
+
+    MVT ContainerVT = getContainerForFixedLengthVector(VT, Subtarget);
+    auto TrueMask = getDefaultVLOps(VT, ContainerVT, DL, DAG, Subtarget).first;
+    SDValue Passthru = PassthruSrc == 0 ? V1 : V2;
+    SDValue SlideOp = SlideSrc == 0 ? V1 : V2;
+
+    // Tail-undisturbed lowering destructively updates the passthru. If it has
+    // other uses, preserving it can require an extra copy and make this more
+    // expensive than the generic masked-slide lowering.
+    if (!Passthru.hasOneUse())
+      return SDValue();
+
+    Passthru = convertToScalableVector(ContainerVT, Passthru, DAG, Subtarget);
+    SlideOp = convertToScalableVector(ContainerVT, SlideOp, DAG, Subtarget);
+
+    SDValue VL = DAG.getConstant(PrefixLen, DL, XLenVT);
+    SDValue Slidedown = getVSlidedown(
+        DAG, Subtarget, DL, ContainerVT, Passthru, SlideOp,
+        DAG.getConstant(Offset, DL, XLenVT), TrueMask, VL,
+        RISCVVType::TAIL_UNDISTURBED_MASK_UNDISTURBED |
+            RISCVVType::MASK_AGNOSTIC);
+    return convertFromScalableVector(VT, Slidedown, DAG, Subtarget);
+  };
+
+  if (SDValue V = TryMatch(/*SlideSrc=*/0, /*PassthruSrc=*/1))
+    return V;
+  return TryMatch(/*SlideSrc=*/1, /*PassthruSrc=*/0);
+}
+
 // Because vslideup leaves the destination elements at the start intact, we can
 // use it to perform shuffles that insert subvectors:
 //
@@ -6848,6 +6916,10 @@ SDValue RISCVTargetLowering::lowerVECTOR_SHUFFLE(SDValue Op,
         if (SDValue V = tryWidenMaskForShuffle(Op, DAG))
           return V;
     }
+
+    if (SDValue V = lowerVECTOR_SHUFFLEAsPrefixVSlidedown(
+            DL, VT, V1, V2, Mask, Subtarget, DAG))
+      return V;
 
     // Build the mask.  Note that vslideup unconditionally preserves elements
     // below the slide amount in the destination, and thus those elements are
