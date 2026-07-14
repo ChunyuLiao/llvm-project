@@ -4250,6 +4250,49 @@ static SDValue lowerBuildVectorViaVID(SDValue Op, SelectionDAG &DAG,
   return SDValue();
 }
 
+// Lower a BUILD_VECTOR consisting of two equally-sized runs of splatted
+// values using two broadcasts and a vslideup. For example:
+//
+//   build_vector [x, x, x, x, y, y, y, y]
+//
+// becomes a splat of x, a splat of y, and a vslideup by 4. This avoids
+// materializing the constant mask needed by the generic dominant-value
+// VSELECT lowering.
+static SDValue lowerBuildVectorViaVSlideup(
+    SDValue Op, SelectionDAG &DAG, const RISCVSubtarget &Subtarget) {
+  MVT VT = Op.getSimpleValueType();
+  assert(VT.isFixedLengthVector() && "Unexpected vector!");
+
+  unsigned NumElts = VT.getVectorNumElements();
+  if (NumElts < 4 || NumElts % 2 != 0)
+    return SDValue();
+
+  unsigned HalfNumElts = NumElts / 2;
+  SDValue Lo = Op.getOperand(0);
+  SDValue Hi = Op.getOperand(HalfNumElts);
+  if (Lo.isUndef() || Hi.isUndef() || Lo == Hi)
+    return SDValue();
+
+  for (unsigned I = 0; I != HalfNumElts; ++I)
+    if (Op.getOperand(I) != Lo || Op.getOperand(I + HalfNumElts) != Hi)
+      return SDValue();
+
+  SDLoc DL(Op);
+  MVT ContainerVT = getContainerForFixedLengthVector(VT, Subtarget);
+  auto [Mask, VL] = getDefaultVLOps(VT, ContainerVT, DL, DAG, Subtarget);
+
+  SDValue LoVec = DAG.getSplatBuildVector(VT, DL, Lo);
+  SDValue HiVec = DAG.getSplatBuildVector(VT, DL, Hi);
+  LoVec = convertToScalableVector(ContainerVT, LoVec, DAG, Subtarget);
+  HiVec = convertToScalableVector(ContainerVT, HiVec, DAG, Subtarget);
+
+  SDValue Slideup = getVSlideup(
+      DAG, Subtarget, DL, ContainerVT, LoVec, HiVec,
+      DAG.getConstant(HalfNumElts, DL, Subtarget.getXLenVT()), Mask, VL,
+      RISCVVType::TAIL_AGNOSTIC | RISCVVType::MASK_AGNOSTIC);
+  return convertFromScalableVector(VT, Slideup, DAG, Subtarget);
+}
+
 /// Try and optimize BUILD_VECTORs with "dominant values" - these are values
 /// which constitute a large proportion of the elements. In such cases we can
 /// splat a vector with the dominant element and make up the shortfall with
@@ -4854,6 +4897,9 @@ static SDValue lowerBUILD_VECTOR(SDValue Op, SelectionDAG &DAG,
         DAG.getNode(Opc, DL, ContainerVT, DAG.getUNDEF(ContainerVT), Splat, VL);
     return convertFromScalableVector(VT, Splat, DAG, Subtarget);
   }
+
+  if (SDValue Res = lowerBuildVectorViaVSlideup(Op, DAG, Subtarget))
+    return Res;
 
   if (SDValue Res = lowerBuildVectorViaDominantValues(Op, DAG, Subtarget))
     return Res;
