@@ -438,6 +438,10 @@ struct PseudoInfo {
 #define GET_RISCVVPseudosTable_DECL
 #include "RISCVGenSearchableTables.inc"
 
+const PseudoInfo *getPseudoInfoForMCOpcode(unsigned BaseInstr, unsigned VLMul,
+                                           unsigned SEW, bool IsAltFmt,
+                                           bool IsMasked);
+
 } // end namespace RISCVVPseudosTable
 
 namespace RISCV {

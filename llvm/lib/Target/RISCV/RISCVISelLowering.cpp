@@ -20439,6 +20439,10 @@ static unsigned negateFMAOpcode(unsigned Opcode, bool NegMul, bool NegAcc) {
     case RISCVISD::STRICT_VFNMSUB_VL: Opcode = RISCVISD::STRICT_VFMADD_VL;  break;
     case RISCVISD::STRICT_VFNMADD_VL: Opcode = RISCVISD::STRICT_VFMSUB_VL;  break;
     case RISCVISD::STRICT_VFMSUB_VL:  Opcode = RISCVISD::STRICT_VFNMADD_VL; break;
+    case RISCVISD::VFWMADD_VL:  Opcode = RISCVISD::VFWNMSUB_VL; break;
+    case RISCVISD::VFWNMSUB_VL: Opcode = RISCVISD::VFWMADD_VL;  break;
+    case RISCVISD::VFWNMADD_VL: Opcode = RISCVISD::VFWMSUB_VL;  break;
+    case RISCVISD::VFWMSUB_VL:  Opcode = RISCVISD::VFWNMADD_VL; break;
     }
     // clang-format on
   }
@@ -20456,6 +20460,10 @@ static unsigned negateFMAOpcode(unsigned Opcode, bool NegMul, bool NegAcc) {
     case RISCVISD::STRICT_VFMSUB_VL:  Opcode = RISCVISD::STRICT_VFMADD_VL;  break;
     case RISCVISD::STRICT_VFNMADD_VL: Opcode = RISCVISD::STRICT_VFNMSUB_VL; break;
     case RISCVISD::STRICT_VFNMSUB_VL: Opcode = RISCVISD::STRICT_VFNMADD_VL; break;
+    case RISCVISD::VFWMADD_VL:  Opcode = RISCVISD::VFWMSUB_VL;  break;
+    case RISCVISD::VFWMSUB_VL:  Opcode = RISCVISD::VFWMADD_VL;  break;
+    case RISCVISD::VFWNMADD_VL: Opcode = RISCVISD::VFWNMSUB_VL; break;
+    case RISCVISD::VFWNMSUB_VL: Opcode = RISCVISD::VFWNMADD_VL; break;
     }
     // clang-format on
   }
@@ -20500,6 +20508,40 @@ static SDValue combineVFMADD_VLWithVFNEG_VL(SDNode *N, SelectionDAG &DAG) {
                        {N->getOperand(0), A, B, C, Mask, VL});
   return DAG.getNode(NewOpcode, SDLoc(N), N->getValueType(0), A, B, C, Mask,
                      VL);
+}
+
+static bool isFMA_VL(unsigned Opcode) {
+  switch (Opcode) {
+  default:
+    return false;
+  case RISCVISD::VFMADD_VL:
+  case RISCVISD::VFNMADD_VL:
+  case RISCVISD::VFMSUB_VL:
+  case RISCVISD::VFNMSUB_VL:
+  case RISCVISD::VFWMADD_VL:
+  case RISCVISD::VFWNMADD_VL:
+  case RISCVISD::VFWMSUB_VL:
+  case RISCVISD::VFWNMSUB_VL:
+    return true;
+  }
+}
+
+static SDValue combineVFNEG_VLWithVFMADD_VL(SDNode *N, SelectionDAG &DAG) {
+  assert(N->getOpcode() == RISCVISD::FNEG_VL && "Unexpected opcode");
+
+  SDValue FMA = N->getOperand(0);
+  if (!FMA.hasOneUse() || !isFMA_VL(FMA.getOpcode()))
+    return SDValue();
+
+  SDValue Mask = N->getOperand(1);
+  SDValue VL = N->getOperand(2);
+  if (FMA.getOperand(3) != Mask || FMA.getOperand(4) != VL)
+    return SDValue();
+
+  unsigned NewOpcode =
+      negateFMAOpcode(FMA.getOpcode(), /*NegMul=*/true, /*NegAcc=*/true);
+  return DAG.getNode(NewOpcode, SDLoc(N), N->getValueType(0), FMA.getOperand(0),
+                     FMA.getOperand(1), FMA.getOperand(2), Mask, VL);
 }
 
 static SDValue performVFMADD_VLCombine(SDNode *N,
@@ -23282,6 +23324,8 @@ SDValue RISCVTargetLowering::PerformDAGCombine(SDNode *N,
   case RISCVISD::SUB_VL:
   case RISCVISD::MUL_VL:
     return combineOp_VLToVWOp_VL(N, DCI, Subtarget);
+  case RISCVISD::FNEG_VL:
+    return combineVFNEG_VLWithVFMADD_VL(N, DAG);
   case RISCVISD::VFMADD_VL:
   case RISCVISD::VFNMADD_VL:
   case RISCVISD::VFMSUB_VL:
