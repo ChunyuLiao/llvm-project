@@ -2406,6 +2406,9 @@ include "RISCVInstrInfoZvzip.td"
 include "RISCVInstrInfoZvvm.td"
 include "RISCVInstrInfoZvbdota.td"
 
+// Attached Matrix Extension
+include "RISCVInstrInfoAME.td"
+
 // Packed SIMD
 include "RISCVInstrInfoP.td"
 

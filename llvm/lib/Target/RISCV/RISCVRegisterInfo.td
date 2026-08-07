@@ -1056,6 +1056,30 @@ def MR : RISCVRegisterClass<[i8, v8i1], 8,
 
 def MR0 : RISCVRegisterClass<[i8, v8i1], 8, (add M0)>;
 
+// Attached Matrix Extension registers. M0-M7 are shared with the existing
+// architectural mask-register names; AME extends that namespace through M31.
+foreach Index = 8-31 in
+  def M#Index : RISCVReg<Index, "m"#Index>,
+                         DwarfRegNum<[!add(Index, 4020)]>;
+
+foreach Index = 0-31 in
+  def ACC#Index : RISCVReg<Index, "acc"#Index>,
+                           DwarfRegNum<[!add(Index, 4052)]>;
+
+def AMEMR : RISCVRegisterClass<[untyped], 32,
+                               (add (sequence "M%u", 0, 31))> {
+  let DecoderMethod = "DecodeSimpleRegisterClass<RISCV::M0, 32>";
+  let DiagnosticType = "InvalidRegClassAMEMR";
+  let DiagnosticString = "register must be an AME matrix register";
+}
+
+def AMEAR : RISCVRegisterClass<[untyped], 32,
+                               (add (sequence "ACC%u", 0, 31))> {
+  let DecoderMethod = "DecodeSimpleRegisterClass<RISCV::ACC0, 32>";
+  let DiagnosticType = "InvalidRegClassAMEAR";
+  let DiagnosticString = "register must be an AME accumulator register";
+}
+
 //===----------------------------------------------------------------------===//
 // Register categories.
 //

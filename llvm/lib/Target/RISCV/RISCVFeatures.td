@@ -263,6 +263,13 @@ def HasStdExtZtso : Predicate<"Subtarget->hasStdExtZtso()">,
                         "'Ztso' (Memory Model - Total Store Order)">;
 def NoStdExtZtso : Predicate<"!Subtarget->hasStdExtZtso()">;
 
+def FeatureStdExtZtt
+    : RISCVExperimentalExtension<0, 6, "Attached Matrix Extension">;
+def HasStdExtZtt
+    : Predicate<"Subtarget->hasStdExtZtt()">,
+      AssemblerPredicate<(all_of FeatureStdExtZtt),
+                         "'Ztt' (Attached Matrix Extension)">;
+
 def FeatureStdExtZa64rs
     : RISCVExtension<1, 0, "Reservation Set Size of at Most 64 Bytes">;
 
