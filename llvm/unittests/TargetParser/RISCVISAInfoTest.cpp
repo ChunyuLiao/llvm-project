@@ -696,6 +696,25 @@ TEST(ParseArchString, AddsImpliedExtensions) {
   EXPECT_EQ(ExtsRV32IZKN.count("zknd"), 1U);
   EXPECT_EQ(ExtsRV32IZKN.count("zknh"), 1U);
   EXPECT_EQ(ExtsRV32IZKN.count("zkn"), 1U);
+
+  auto MaybeRV64ISmlwidlist =
+      RISCVISAInfo::parseArchString("rv64i_smlwidlist1p0", true);
+  ASSERT_THAT_EXPECTED(MaybeRV64ISmlwidlist, Succeeded());
+  const auto &ExtsRV64ISmlwidlist = (*MaybeRV64ISmlwidlist)->getExtensions();
+  EXPECT_EQ(ExtsRV64ISmlwidlist.size(), 4UL);
+  EXPECT_EQ(ExtsRV64ISmlwidlist.count("i"), 1U);
+  EXPECT_EQ(ExtsRV64ISmlwidlist.count("smlwid"), 1U);
+  EXPECT_EQ(ExtsRV64ISmlwidlist.count("smlwidlist"), 1U);
+  EXPECT_EQ(ExtsRV64ISmlwidlist.count("smwid"), 1U);
+
+  auto MaybeRV64ISswid = RISCVISAInfo::parseArchString("rv64i_sswid1p0", true);
+  ASSERT_THAT_EXPECTED(MaybeRV64ISswid, Succeeded());
+  const auto &ExtsRV64ISswid = (*MaybeRV64ISswid)->getExtensions();
+  EXPECT_EQ(ExtsRV64ISswid.size(), 4UL);
+  EXPECT_EQ(ExtsRV64ISswid.count("i"), 1U);
+  EXPECT_EQ(ExtsRV64ISswid.count("smlwid"), 1U);
+  EXPECT_EQ(ExtsRV64ISswid.count("smwiddeleg"), 1U);
+  EXPECT_EQ(ExtsRV64ISswid.count("sswid"), 1U);
 }
 
 TEST(ParseArchString, RejectsConflictingExtensions) {
@@ -1663,10 +1682,15 @@ Experimental extensions
     smcsps               0.19
     smehv                0.19
     smijt                0.19
+    smlwid               1.0
+    smlwidlist           1.0
     smpmpmt              0.6
+    smwid                1.0
+    smwiddeleg           1.0
     sscsps               0.19
     ssehv                0.19
     ssijt                0.19
+    sswid                1.0
     svukte               1.0
     xqccmt               0.1
     xsfmclic             0.1

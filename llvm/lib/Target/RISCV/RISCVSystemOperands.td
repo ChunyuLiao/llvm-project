@@ -151,6 +151,12 @@ def : SysReg<"sieh", 0x114, RV32Only=true>;
 def : SysReg<"senvcfg", 0x10A>;
 
 //===----------------------------------------------------------------------===//
+// Supervisor RISC-V Worlds Extension CSR
+//===----------------------------------------------------------------------===//
+
+def : SysReg<"slwid", 0x190>;
+
+//===----------------------------------------------------------------------===//
 // Supervisor Counter Setup
 //===----------------------------------------------------------------------===//
 
@@ -408,6 +414,15 @@ def : SysReg<"menvcfg", 0x30A>;
 def : SysReg<"menvcfgh", 0x31A, RV32Only=true>;
 def : SysReg<"mseccfg", 0x747>;
 def : SysReg<"mseccfgh", 0x757, RV32Only=true>;
+
+//===----------------------------------------------------------------------===//
+// Machine RISC-V Worlds Extension CSRs
+//===----------------------------------------------------------------------===//
+
+def : SysReg<"mlwid", 0x390>;
+def : SysReg<"mwiddeleg", 0x748>;
+def : SysReg<"mwid", 0x749>;
+def : SysReg<"mlwidlist", 0x74A>;
 
 //===----------------------------------------------------------------------===//
 // Machine Memory Protection

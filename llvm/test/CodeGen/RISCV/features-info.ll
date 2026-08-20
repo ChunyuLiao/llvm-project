@@ -27,10 +27,15 @@
 ; CHECK-NEXT:   experimental-smcsps              - 'Smcsps' (Conditional Stack Pointer Swap at Machine Level).
 ; CHECK-NEXT:   experimental-smehv               - 'Smehv' (Synchronous Exception Hardware Vectoring at Machine Level).
 ; CHECK-NEXT:   experimental-smijt               - 'Smijt' (Interrupt Jump Table at Machine Level).
+; CHECK-NEXT:   experimental-smlwid              - 'Smlwid' (Machine-mode Lower-privilege World Identifier).
+; CHECK-NEXT:   experimental-smlwidlist          - 'Smlwidlist' (Machine-mode Lower-privilege World Identifier List).
 ; CHECK-NEXT:   experimental-smpmpmt             - 'Smpmpmt' (PMP-based Memory Types Extension).
+; CHECK-NEXT:   experimental-smwid               - 'Smwid' (Machine-mode World Identifier).
+; CHECK-NEXT:   experimental-smwiddeleg          - 'Smwiddeleg' (Machine-mode World Identifier Delegation).
 ; CHECK-NEXT:   experimental-sscsps              - 'Sscsps' (Conditional Stack Pointer Swap at Supervisor Level).
 ; CHECK-NEXT:   experimental-ssehv               - 'Ssehv' (Synchronous Exception Hardware Vectoring at Supervisor Level).
 ; CHECK-NEXT:   experimental-ssijt               - 'Ssijt' (Interrupt Jump Table at Supervisor Level).
+; CHECK-NEXT:   experimental-sswid               - 'Sswid' (Supervisor-mode World Identifier).
 ; CHECK-NEXT:   experimental-svukte              - 'Svukte' (Address-Independent Latency of User-Mode Faults to Supervisor Addresses).
 ; CHECK-NEXT:   experimental-xqccmt              - 'Xqccmt' (Qualcomm 16-bit Table Jump).
 ; CHECK-NEXT:   experimental-xsfmclic            - 'XSfmclic' (SiFive CLIC Machine-mode CSRs).

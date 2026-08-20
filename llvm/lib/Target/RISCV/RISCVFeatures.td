@@ -1118,6 +1118,23 @@ def FeatureStdExtSsehv
 def FeatureStdExtSmpmpmt
     : RISCVExperimentalExtension<0, 6, "PMP-based Memory Types Extension">;
 
+def FeatureStdExtSmwid
+    : RISCVExperimentalExtension<1, 0, "Machine-mode World Identifier">;
+def FeatureStdExtSmlwid
+    : RISCVExperimentalExtension<1, 0,
+                                 "Machine-mode Lower-privilege World Identifier">;
+def FeatureStdExtSmlwidlist
+    : RISCVExperimentalExtension<1, 0,
+                                 "Machine-mode Lower-privilege World Identifier List",
+                                 [FeatureStdExtSmwid, FeatureStdExtSmlwid]>;
+def FeatureStdExtSmwiddeleg
+    : RISCVExperimentalExtension<1, 0,
+                                 "Machine-mode World Identifier Delegation",
+                                 [FeatureStdExtSmlwid]>;
+def FeatureStdExtSswid
+    : RISCVExperimentalExtension<1, 0, "Supervisor-mode World Identifier",
+                                 [FeatureStdExtSmwiddeleg]>;
+
 def FeatureStdExtSmrnmi
     : RISCVExtension<1, 0, "Resumable Non-Maskable Interrupts">;
 def HasStdExtSmrnmi : Predicate<"Subtarget->hasStdExtSmrnmi()">,

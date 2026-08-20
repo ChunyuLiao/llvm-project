@@ -390,6 +390,36 @@
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-EXPERIMENTAL-GOODVERS %s
 // RV32-EXPERIMENTAL-GOODVERS: "-target-feature" "+experimental-zibi"
 
+// RUN: %clang --target=riscv64-unknown-elf -march=rv64i_smwid1p0 \
+// RUN: -menable-experimental-extensions -### %s -fsyntax-only 2>&1 | FileCheck -check-prefix=RV64-WORLDS-SMWID %s
+// RV64-WORLDS-SMWID: "-target-feature" "+experimental-smwid"
+
+// RUN: %clang --target=riscv64-unknown-elf -march=rv64i_smlwid1p0 \
+// RUN: -menable-experimental-extensions -### %s -fsyntax-only 2>&1 | FileCheck -check-prefix=RV64-WORLDS-SMLWID %s
+// RV64-WORLDS-SMLWID: "-target-feature" "+experimental-smlwid"
+// RV64-WORLDS-SMLWID-NOT: "-target-feature" "+experimental-smwid"
+
+// RUN: %clang --target=riscv64-unknown-elf -march=rv64i_smlwidlist1p0 \
+// RUN: -menable-experimental-extensions -### %s -fsyntax-only 2>&1 | FileCheck -check-prefix=RV64-WORLDS-SMLWIDLIST %s
+// RV64-WORLDS-SMLWIDLIST-DAG: "-target-feature" "+experimental-smlwid"
+// RV64-WORLDS-SMLWIDLIST-DAG: "-target-feature" "+experimental-smlwidlist"
+// RV64-WORLDS-SMLWIDLIST-DAG: "-target-feature" "+experimental-smwid"
+
+// RUN: %clang --target=riscv64-unknown-elf -march=rv64i_smwiddeleg1p0 \
+// RUN: -menable-experimental-extensions -### %s -fsyntax-only 2>&1 | FileCheck -check-prefix=RV64-WORLDS-SMWIDDELEG %s
+// RV64-WORLDS-SMWIDDELEG-DAG: "-target-feature" "+experimental-smlwid"
+// RV64-WORLDS-SMWIDDELEG-DAG: "-target-feature" "+experimental-smwiddeleg"
+// RV64-WORLDS-SMWIDDELEG-NOT: "-target-feature" "+experimental-smlwidlist"
+// RV64-WORLDS-SMWIDDELEG-NOT: "-target-feature" "+experimental-smwid"
+
+// RUN: %clang --target=riscv64-unknown-elf -march=rv64i_sswid1p0 \
+// RUN: -menable-experimental-extensions -### %s -fsyntax-only 2>&1 | FileCheck -check-prefix=RV64-WORLDS-SSWID %s
+// RV64-WORLDS-SSWID-DAG: "-target-feature" "+experimental-smlwid"
+// RV64-WORLDS-SSWID-DAG: "-target-feature" "+experimental-smwiddeleg"
+// RV64-WORLDS-SSWID-DAG: "-target-feature" "+experimental-sswid"
+// RV64-WORLDS-SSWID-NOT: "-target-feature" "+experimental-smlwidlist"
+// RV64-WORLDS-SSWID-NOT: "-target-feature" "+experimental-smwid"
+
 // RUN: %clang --target=riscv32-unknown-elf -march=rv32izalasr1p0 -### %s \
 // RUN: -fsyntax-only 2>&1 | FileCheck -check-prefix=RV32-ZALASR %s
 // RUN: %clang --target=riscv32-unknown-elf -march=rv32izalasr -### %s \
